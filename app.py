@@ -5,7 +5,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return f"Rodando na instância Primaria: {socket.gethostname()}"
+    return f"Rodando na instância PRIMARIA, Teste de deploy automático: {socket.gethostname()}"
 
 
 if __name__ == '__main__':
