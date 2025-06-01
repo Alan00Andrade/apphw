@@ -24,6 +24,5 @@ jobs:
         pkill -f app2.py || true
         cd ~/apphw
         pip3 install -r requirements.txt
-        nohup python3 app.py > app5000.log 2>&1 &
-        nohup python3 app2.py > app5001.log 2>&1 &
-        sleep 60  # Espera 1 minuto antes do runner finalizar
+        sudo systemctl restart app1
+        sudo systemctl restart app2
