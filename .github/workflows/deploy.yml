@@ -25,4 +25,7 @@ jobs:
             cd ~/apphw
             pip3 install -r requirements.txt
             nohup python3 app.py > app5000.log 2>&1 &
-            nohup python3 app2.py > app5001.log 2>&1 
+            nohup python3 app2.py > app5001.log 2>&1 &
+            sleep 5
+            curl --fail http://localhost:5000 || exit 1
+            curl --fail http://localhost:5001 || exit 1
