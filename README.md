@@ -1,3 +1,6 @@
+![CI/CD Status](https://github.com/SEU_USUARIO/apphw/actions/workflows/deploy.yml/badge.svg)
+
+
 # Teste Técnico - Infraestrutura e DevOps H&W Publishing
 
 Este repositório contém a aplicação e automações para o teste técnico da H&W Publishing, abordando:
