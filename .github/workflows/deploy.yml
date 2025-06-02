@@ -20,23 +20,23 @@ jobs:
           key: ${{ secrets.VM_KEY }}
           port: '22'
           script: |
-            pkill -f app.py || true
-            pkill -f app2.py || true
-            cd ~/apphw
-            git pull origin main || exit 1  # Garante código atualizado
-            pip3 install -r requirements.txt
-            nohup python3 app.py > app5000.log 2>&1 &
-            nohup python3 app2.py > app5001.log 2>&1 &
-            echo "Aguardando 30s para as aplicações iniciarem..."
-            sleep 30 # Tempo de espera aumentado
-            echo "Verificando logs das aplicações:"
-            echo "--- app5000.log ---"
-            cat app5000.log || echo "Log app5000.log não encontrado ou vazio."
-            echo "--- app5001.log ---"
-            cat app5001.log || echo "Log app5001.log não encontrado ou vazio."
-            echo "--- Fim dos Logs ---"
+            echo "Navegando para o diretório da aplicação..."
+            cd ~/apphw || exit 1
+            echo "Atualizando código do repositório..."
+            git pull origin main || exit 1
+            echo "Instalando dependências..."
+            pip3 install -r requirements.txt || exit 1
+            echo "Reiniciando serviços systemd..."
+            sudo systemctl restart app1 && sudo systemctl restart app2
+            echo "Verificando status dos serviços systemd..."
+            # aguardar um tempo para os serviços subirem e verificamos o status
+            sleep 15 
+            sudo systemctl is-active --quiet app1 || (echo "Falha ao iniciar app1" && sudo systemctl status app1 && exit 1)
+            sudo systemctl is-active --quiet app2 || (echo "Falha ao iniciar app2" && sudo systemctl status app2 && exit 1)
+            echo "Serviços systemd ativos."
             echo "Verificando endpoints localhost..."
-            curl --retry 10 --retry-delay 2 --fail http://localhost:5000 || exit 1
-            curl --retry 10 --retry-delay 2 --fail http://localhost:5001 || exit 1
+            curl --retry 5 --retry-delay 2 --fail http://localhost:5000 || (echo "Falha no curl para porta 5000" && exit 1 )
+            curl --retry 5 --retry-delay 2 --fail http://localhost:5001 || (echo "Falha no curl para porta 5001" && exit 1 )
             echo "Deploy concluído com sucesso!"
+
 
