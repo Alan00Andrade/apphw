@@ -23,10 +23,20 @@ jobs:
             pkill -f app.py || true
             pkill -f app2.py || true
             cd ~/apphw
+            git pull origin main || exit 1  # Garante código atualizado
             pip3 install -r requirements.txt
             nohup python3 app.py > app5000.log 2>&1 &
             nohup python3 app2.py > app5001.log 2>&1 &
-            sleep 10
+            echo "Aguardando 30s para as aplicações iniciarem..."
+            sleep 30 # Tempo de espera aumentado
+            echo "Verificando logs das aplicações:"
+            echo "--- app5000.log ---"
+            cat app5000.log || echo "Log app5000.log não encontrado ou vazio."
+            echo "--- app5001.log ---"
+            cat app5001.log || echo "Log app5001.log não encontrado ou vazio."
+            echo "--- Fim dos Logs ---"
+            echo "Verificando endpoints localhost..."
             curl --retry 10 --retry-delay 2 --fail http://localhost:5000 || exit 1
             curl --retry 10 --retry-delay 2 --fail http://localhost:5001 || exit 1
-            wait
+            echo "Deploy concluído com sucesso!"
+
