@@ -1,111 +1,76 @@
+
 [![CI/CD DevOps Teste H&W](https://github.com/Alan00Andrade/apphw/actions/workflows/deploy.yml/badge.svg)](https://github.com/Alan00Andrade/apphw/actions/workflows/deploy.yml)
 
-
-## Teste Técnico - Infraestrutura e DevOps H&W Publishing
+# Teste Técnico - Infraestrutura e DevOps H&W Publishing
 
 Este repositório contém a aplicação e automações para o teste técnico da H&W Publishing, abordando:
 
-- Criação e configuração de ambiente Linux
-- Deploy automatizado via GitHub Actions
+- Criação e configuração de ambiente Linux (Google Cloud VM)
 - Execução de aplicações Flask em múltiplas portas
-- Balanceamento de carga com NGINX
+- Balanceamento de carga com NGINX (round-robin)
+- Deploy automático via GitHub Actions com SSH
 
 ---
 
-## ️ Atenção
+## 🧑‍💻 Etapa 1 - Criação do Ambiente
 
-> Substitua todos os trechos com `SEU_USUARIO` pelo nome do usuário configurado na sua VM Linux.
-
----
-
-## ️ Etapa 1 - Criação do Ambiente
-
-1. Criada uma VM no **Google Cloud (GCE)** com Ubuntu 22.04 LTS
-2. Configurado acesso via SSH com **chave ED25519**
-3. Criado diretório `/home/SEU_USUARIO/apphw/` para a aplicação
-4. Adicionadas as permissões `sudo` ao usuário da VM
+- Criada uma VM na **Google Cloud Platform (GCE)** com **Ubuntu 22.04 LTS**
+- Configurado acesso via SSH com **chave ED25519**
+- Concedido acesso `sudo` ao usuário padrão da VM
+- Criado diretório `/home/alan/apphw/` para a aplicação
 
 ---
 
-## ️ Etapa 2 - Execução da Aplicação
+## 🚀 Etapa 2 - Execução da Aplicação Flask
 
-1. Aplicações `app.py` (porta 5000) e `app2.py` (porta 5001) são scripts Flask simples.
-2. Criado `requirements.txt` com:
+A aplicação é composta por dois arquivos: `app.py` e `app2.py`, ambos executando serviços web simples com Flask nas portas 5000 e 5001.
 
-```txt
-flask
+Instalação das dependências:
+
+```bash
+pip3 install -r requirements.txt
 ```
 
-3. Criados arquivos de service do systemd:
+Criação dos serviços com `systemd`:
 
-- `/etc/systemd/system/app1.service`
-- `/etc/systemd/system/app2.service`
-
+**`/etc/systemd/system/app1.service`**
 ```ini
 [Unit]
 Description=App Flask na porta 5000
 After=network.target
 
 [Service]
-User=SEU_USUARIO
-WorkingDirectory=/home/SEU_USUARIO/apphw
-ExecStart=/usr/bin/python3 /home/SEU_USUARIO/apphw/app.py
+User=alan
+WorkingDirectory=/home/alan/apphw
+ExecStart=/usr/bin/python3 /home/alan/apphw/app.py
 Restart=always
 
 [Install]
 WantedBy=multi-user.target
 ```
 
-*(app2 igual, só muda a porta e o script)*
+**`/etc/systemd/system/app2.service`**
+Mesma estrutura, apenas altera o script para `app2.py`.
 
-4. Habilitados com:
+Habilitação e inicialização dos serviços:
 
 ```bash
-sudo systemctl daemon-reexec
 sudo systemctl daemon-reload
-sudo systemctl enable app1
-sudo systemctl enable app2
-sudo systemctl start app1
-sudo systemctl start app2
+sudo systemctl enable app1 app2
+sudo systemctl start app1 app2
 ```
 
 ---
 
-##  Etapa 2.5 - Deploy automático com GitHub Actions
+## ⚙️ Etapa 3 - Load Balancer com NGINX
 
-Workflow `.github/workflows/deploy.yml` com `appleboy/ssh-action@v1.0.0` que:
+Configuração de balanceamento na porta 80, com proxy para as aplicações nas portas 5000 e 5001 (round-robin):
 
-- Se conecta via chave SSH
-- Atualiza repositório
-- Instala dependências
-- Reinicia apps
-
-```yaml
-    - name: Deploy remoto via SSH
-      uses: appleboy/ssh-action@v1.0.0
-      with:
-        host: ${{ secrets.REMOTE_HOST }}
-        username: ${{ secrets.REMOTE_USER }}
-        key: ${{ secrets.SSH_PRIVATE_KEY }}
-        script: |
-          pkill -f app.py || true
-          pkill -f app2.py || true
-          cd ~/apphw
-          pip3 install -r requirements.txt
-          nohup python3 app.py > app5000.log 2>&1 &
-          nohup python3 app2.py > app5001.log 2>&1 &
-```
-
----
-
-##  Etapa 3 - Load Balancer com NGINX
-
-Configuração de balanceamento no NGINX para redirecionar tráfego da porta 80 para as portas 5000 e 5001 alternadamente:
+**Arquivo `/etc/nginx/sites-available/default`:**
 
 ```nginx
 server {
     listen 80;
-
     location / {
         proxy_pass http://backend;
     }
@@ -117,24 +82,57 @@ upstream backend {
 }
 ```
 
-Reinício com:
+Reinício do serviço:
 
 ```bash
-sudo nginx -t
-sudo systemctl restart nginx
+sudo nginx -t && sudo systemctl restart nginx
 ```
 
 ---
 
-##  Testes realizados
+## 🔁 Etapa 4 - CI/CD com GitHub Actions
 
-- Acesso via IP externo da VM (porta 80) alternando entre `app.py` e `app2.py`
-- Reboot testado com serviços persistentes
-- Deploy com push via GitHub 100% funcional
+Ao realizar um push para o repositório, o workflow `deploy.yml` é executado utilizando `appleboy/ssh-action`, que:
+
+- Acessa a VM via SSH
+- Atualiza o repositório com `git pull`
+- Instala dependências com `pip3`
+- Reinicia os serviços com `systemd`
+- Realiza teste de verificação nos endpoints
+
+**Workflow: `.github/workflows/deploy.yml`**
+
+```yaml
+    - name: Deploy remoto via SSH
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.REMOTE_HOST }}
+        username: ${{ secrets.REMOTE_USER }}
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        script: |
+          cd ~/apphw || exit 1
+          git pull origin main || exit 1
+          pip3 install -r requirements.txt || exit 1
+          sudo systemctl restart app1 && sudo systemctl restart app2
+          sleep 15
+          sudo systemctl is-active --quiet app1 || exit 1
+          sudo systemctl is-active --quiet app2 || exit 1
+          curl --retry 5 --retry-delay 2 --fail http://localhost:5000 || exit 1
+          curl --retry 5 --retry-delay 2 --fail http://localhost:5001 || exit 1
+```
 
 ---
 
-##  Estrutura do Projeto
+## 🧪 Testes Realizados
+
+- Reboot testado: serviços persistem
+- CI/CD com push validado com sucesso
+- NGINX balanceando corretamente entre apps
+- Verificação automática nos endpoints com `curl`
+
+---
+
+## 📁 Estrutura do Projeto
 
 ```
 apphw/
@@ -148,17 +146,9 @@ apphw/
 
 ---
 
-##  Observações
-
-- O balanceamento é do tipo round-robin.
-- O GitHub Actions usa chave SSH para deploy automático.
-- Serviços são mantidos com `systemd`, garantindo persistência após reboot.
-
----
-
-##  Autor
+## 👨‍💻 Autor
 
 Alan Henrique Andrade  
-[LinkedIn](https://www.linkedin.com/in/alan-andrade-81482a97/)  
-Email: alanh.andrade@gmail.com
-Fone: (31) 9 7207-8434
+📧 Email: alanh.andrade@gmail.com  
+📱 Telefone: (31) 9 7207-8434  
+🔗 [LinkedIn](https://www.linkedin.com/in/alan-andrade-81482a97/)
